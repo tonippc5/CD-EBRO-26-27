@@ -1,4 +1,18 @@
-const { kv } = require('@vercel/kv');
+const { createClient } = require('redis');
+
+// Cache the connection client across serverless function warm starts
+let client;
+
+async function getRedisClient() {
+  if (!client) {
+    client = createClient({
+      url: process.env.KV_REDIS_URL
+    });
+    client.on('error', (err) => console.error('Redis Client Error', err));
+    await client.connect();
+  }
+  return client;
+}
 
 module.exports = async function handler(req, res) {
   // CORS Headers
@@ -16,13 +30,16 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const redis = await getRedisClient();
+
     if (req.method === 'GET') {
       const { key } = req.query;
       if (!key) {
         return res.status(400).json({ error: 'Missing key parameter' });
       }
-      const data = await kv.get(key);
-      return res.status(200).json(data || null);
+      const val = await redis.get(key);
+      const data = val ? JSON.parse(val) : null;
+      return res.status(200).json(data);
     }
 
     if (req.method === 'POST') {
@@ -30,7 +47,7 @@ module.exports = async function handler(req, res) {
       if (!key) {
         return res.status(400).json({ error: 'Missing key parameter' });
       }
-      await kv.set(key, data);
+      await redis.set(key, JSON.stringify(data));
       return res.status(200).json({ success: true });
     }
 
