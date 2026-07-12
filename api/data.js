@@ -5,8 +5,9 @@ let client;
 
 async function getRedisClient() {
   if (!client) {
+    const redisUrl = process.env.KV_URL || process.env.KV_REDIS_URL || process.env.REDIS_URL;
     client = createClient({
-      url: process.env.KV_REDIS_URL
+      url: redisUrl
     });
     client.on('error', (err) => console.error('Redis Client Error', err));
     await client.connect();
